@@ -41,6 +41,7 @@ class AbstractVocabulary(ABC):
 
     @abstractmethod
     def add_sentence(self, sentence: str) -> List[int]:
+        """Return the encoded sentence"""
         pass
 
     @abstractmethod
@@ -56,6 +57,7 @@ class WordVocabulary(AbstractVocabulary):
         sentence_enc = []
         for word in words:
             sentence_enc.append(self._add_token(word))
+        sentence_enc.append(EOS_token)
         return sentence_enc
 
     def to_string(self, sequence: List[int]) -> str:
@@ -68,6 +70,7 @@ class CharVocabulary(AbstractVocabulary):
         sentence_enc = []
         for c in sentence:
             sentence_enc.append(self._add_token(c))
+        sentence_enc.append(EOS_token)
         return sentence_enc
 
     def to_string(self, sequence: List[int]) -> str:

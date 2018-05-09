@@ -9,12 +9,12 @@ from enum import Enum
 from functools import reduce
 from random import randint
 from typing import Type
-from urllib import request
+from urllib.request import urlretrieve
 
 import torch
 from torch.utils import data
 
-from lang import EOS_token, AbstractVocabulary
+from lang import AbstractVocabulary
 
 
 class SetType(Enum):
@@ -107,21 +107,24 @@ class E2E(data.Dataset):
         """Download and process the E2E data."""
         csv_folder = os.path.join(self.root, self.csv_folder)
         if _folder_contains_files(csv_folder, files=['trainset.csv', 'devset.csv', 'testset.csv']):
+            # No need to download again
             return os.path.join(self.root, self.csv_folder)
 
-        shutil.rmtree(os.path.join(self.root, self.csv_folder))
+        # Clean before download
+        try:
+            shutil.rmtree(os.path.join(self.root))
+        except FileNotFoundError:
+            # That's ok
+            pass
+        os.makedirs(csv_folder)
 
         print('Downloading ' + self.url)
-        downloaded_data = request.urlopen(self.url)
-        filename = self.url.rpartition('/')[2]
-        file_path = os.path.join(self.root, filename)
-        with open(file_path, 'wb') as f:
-            f.write(downloaded_data.read())
+        zip_path = os.path.join(self.root, 'e2e-dataset.zip')
+        urlretrieve(self.url, zip_path)
 
         print('Extracting zip archive')
-        with zipfile.ZipFile(file_path) as zip_f:
+        with zipfile.ZipFile(zip_path) as zip_f:
             zip_f.extractall(self.root)
-        os.unlink(file_path)
 
         # Rename folder
         os.rename(os.path.join(self.root, 'e2e-dataset'), csv_folder)
@@ -132,6 +135,7 @@ class E2E(data.Dataset):
         os.rename(os.path.join(csv_folder, 'testset_w_refs.csv'),
                   os.path.join(csv_folder, 'testset.csv'))
 
+        os.remove(zip_path)
         return csv_folder
 
     def _process(self, csv_folder):
@@ -175,8 +179,6 @@ class E2E(data.Dataset):
         for mr, ref in zip(meaning_representations, references):
             mr = self.vocabulary.add_sentence(mr)
             ref = self.vocabulary.add_sentence(ref)
-            mr.append(EOS_token)
-            ref.append(EOS_token)
             examples.append([mr, ref])
         return examples
 
