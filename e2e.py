@@ -1,10 +1,11 @@
 import csv
+import enum
 import os
 import os.path
 import pickle
 import shutil
 import zipfile
-from enum import Enum, auto
+from enum import Enum
 from functools import reduce
 from random import randint
 from typing import Type
@@ -17,9 +18,9 @@ from lang import EOS_token, AbstractVocabulary
 
 
 class SetType(Enum):
-    TRAIN = auto()
-    DEV = auto()
-    TEST = auto()
+    TRAIN = enum.auto()
+    DEV = enum.auto()
+    TEST = enum.auto()
 
 
 def _extract_mr_ref(file):
@@ -56,7 +57,7 @@ class E2E(data.Dataset):
     vocabulary_file = 'vocabulary.pt'
 
     def __init__(self, root, which_set: SetType, vocabulary_class: Type[AbstractVocabulary]):
-        self.root = os.path.expanduser(root)
+        self.root = os.path.realpath(os.path.expanduser(root))
         self.which_set = which_set
         self.processed_folder = vocabulary_class.__name__
 
