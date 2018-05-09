@@ -1,3 +1,4 @@
+# coding=utf-8
 import csv
 import enum
 import os
@@ -86,7 +87,8 @@ class E2E(data.Dataset):
         Returns:
             tuple: (mr, ref)
         """
-        return self.mr[index], self.ref[index]
+        return (torch.LongTensor(self.mr[index]),
+                torch.LongTensor(self.ref[index]))
 
     def __len__(self) -> int:
         return len(self.mr)
@@ -148,23 +150,23 @@ class E2E(data.Dataset):
         print('Encoding and saving examples')
         os.makedirs(os.path.join(self.root, self.processed_folder))
 
-        train_tensor = self._strings_to_tensor(train_mr, train_ref)
+        train_list = self._strings_to_list(train_mr, train_ref)
         with open(os.path.join(self.root, self.processed_folder, self.train_file), 'wb') as f:
-            torch.save(train_tensor, f)
+            torch.save(train_list, f)
 
-        dev_tensor = self._strings_to_tensor(dev_mr, dev_ref)
+        dev_list = self._strings_to_list(dev_mr, dev_ref)
         with open(os.path.join(self.root, self.processed_folder, self.dev_file), 'wb') as f:
-            torch.save(dev_tensor, f)
+            torch.save(dev_list, f)
 
-        test_tensor = self._strings_to_tensor(test_mr, test_ref)
+        test_list = self._strings_to_list(test_mr, test_ref)
         with open(os.path.join(self.root, self.processed_folder, self.test_file), 'wb') as f:
-            torch.save(test_tensor, f)
+            torch.save(test_list, f)
 
-        # Store the right tensor in local fields
+        # Store the right list in local fields
         options = {
-            SetType.TRAIN: train_tensor,
-            SetType.DEV:   dev_tensor,
-            SetType.TEST:  test_tensor
+            SetType.TRAIN: train_list,
+            SetType.DEV:   dev_list,
+            SetType.TEST:  test_list
         }
         self.mr, self.ref = map(list, zip(*options[self.which_set]))
 
@@ -174,7 +176,7 @@ class E2E(data.Dataset):
 
         print('Done!')
 
-    def _strings_to_tensor(self, meaning_representations: List[str], references: List[str]) -> List[List[List[int]]]:
+    def _strings_to_list(self, meaning_representations: List[str], references: List[str]) -> List[List[List[int]]]:
         examples = []
         for mr, ref in zip(meaning_representations, references):
             mr = self.vocabulary.add_sentence(mr)
@@ -182,8 +184,5 @@ class E2E(data.Dataset):
             examples.append([mr, ref])
         return examples
 
-    def random_example(self) -> Tuple[str, str]:
-        i = randint(0, len(self))
-        mr = self[i][0]
-        ref = self[i][1]
-        return self.vocabulary.to_string(mr), self.vocabulary.to_string(ref)
+    def to_string(self, tensor):
+        return self.vocabulary.to_string(tensor)

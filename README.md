@@ -15,6 +15,28 @@ abstract one that you can extend to create your own implementation.
 Once instantiated your E2E object, just use it as a normal PyTorch DataSet: pass it to a
 [DataLoader](https://pytorch.org/docs/master/data.html#torch.utils.data.DataLoader) and enjoy!
 
+```python
+# coding=utf-8
+from torch.utils.data import DataLoader
+from torch.utils.data.sampler import RandomSampler
+
+from e2e import E2E, SetType
+from lang import WordVocabulary
+
+dataset = E2E('./data', SetType.TEST, vocabulary_class=WordVocabulary)
+data_loader = DataLoader(dataset, sampler=RandomSampler(dataset))
+
+mr, ref = next(iter(data_loader))
+
+print('mr is a {} {} of size {}.'.format(mr.dtype, type(mr).__name__, tuple(mr.size())))
+print('ref is a {} {} of size {}.'.format(ref.dtype, type(ref).__name__, tuple(ref.size())))
+
+# Output:
+# mr is a torch.int64 Tensor of size (1, 42).
+# ref is a torch.int64 Tensor of size (1, 29).
+
+```
+
 ## Generated directories
 Once initialized, the E2E dataset will be organized as follows, inside the root directory passed
 as a constructor parameter:
