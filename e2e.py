@@ -20,6 +20,19 @@ class SetType(Enum):
     TEST = auto()
 
 
+def _extract_mr_ref(file):
+    print('Processing ' + file)
+    mr = []
+    ref = []
+    with open(file, 'r') as csv_file:
+        reader = csv.reader(csv_file, delimiter=',')
+        next(reader)
+        for row in reader:
+            mr.append(row[0])
+            ref.append(row[1])
+    return mr, ref
+
+
 class E2E(data.Dataset):
     """`E2E <http://www.macs.hw.ac.uk/InteractionLab/E2E/>`_ Dataset.
 
@@ -93,19 +106,6 @@ class E2E(data.Dataset):
                os.path.exists(os.path.join(self.root, self.processed_folder, self.dev_file)) and \
                os.path.exists(os.path.join(self.root, self.processed_folder, self.test_file))
 
-    @staticmethod
-    def _extract_mr_ref(file):
-        print('Processing ' + file)
-        mr = []
-        ref = []
-        with open(file, 'r') as csv_file:
-            reader = csv.reader(csv_file, delimiter=',')
-            next(reader)
-            for row in reader:
-                mr.append(row[0])
-                ref.append(row[1])
-        return mr, ref
-
     def _load_from_file(self, src_file):
         src_data = torch.load(
                 os.path.join(self.root, self.processed_folder, src_file))
@@ -138,24 +138,16 @@ class E2E(data.Dataset):
         os.unlink(file_path)
         csv_folder = os.path.join(self.root, self.csv_folder)
         os.rename(os.path.join(self.root, 'e2e-dataset'), csv_folder)
-        for filename in os.listdir(csv_folder):
-            # TODO just use names, not a loop
-            old_file = os.path.join(csv_folder, filename)
-            if filename.endswith('csv'):
-                file = os.path.join(csv_folder, filename.upper())
-                os.rename(old_file, file)
-                filename = os.path.basename(file)
-                if filename == 'TESTSET.CSV':
-                    os.remove(file)
-                if filename.__contains__('_W_REFS'):
-                    os.rename(file, file.replace('_W_REFS', ''))
-            else:
-                os.remove(old_file)
+        # Delete useless files and rename new ones
+        os.remove(os.path.join(csv_folder, 'README.md'))
+        os.remove(os.path.join(csv_folder, 'testset.csv'))
+        os.rename(os.path.join(csv_folder, 'testset_w_refs.csv'),
+                  os.path.join(csv_folder, 'testset.csv'))
 
         # Extract strings from CSV
-        self.train_mr, self.train_ref = self._extract_mr_ref(os.path.join(csv_folder, 'TRAINSET.CSV'))
-        self.dev_mr, self.dev_ref = self._extract_mr_ref(os.path.join(csv_folder, 'DEVSET.CSV'))
-        self.test_mr, self.test_ref = self._extract_mr_ref(os.path.join(csv_folder, 'TESTSET.CSV'))
+        self.train_mr, self.train_ref = _extract_mr_ref(os.path.join(csv_folder, 'trainset.csv'))
+        self.dev_mr, self.dev_ref = _extract_mr_ref(os.path.join(csv_folder, 'devset.csv'))
+        self.test_mr, self.test_ref = _extract_mr_ref(os.path.join(csv_folder, 'testset.csv'))
 
         # Encode MR, REF as tensors and save them
         print('Encoding and saving examples')
