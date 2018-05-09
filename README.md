@@ -12,7 +12,7 @@ Vocabulary object can convert lists to strings and vice versa.
 You will find in *lang.py* a word-based and a character-based vocabulary class, as well as an
 abstract one that you can extend to create your own implementation.
 
-Once instantiated your e2e object, just use it as a normal PyTorch DataSet: pass it to a
+Once instantiated your E2E object, just use it as a normal PyTorch DataSet: pass it to a
 [DataLoader](https://pytorch.org/docs/master/data.html#torch.utils.data.DataLoader) and enjoy!
 
 ## Generated directories
@@ -21,7 +21,7 @@ as a constructor parameter:
  * **csv/** contains the plain dataset's three CSV files:
     * *trainset.csv*
     * *devset.csv*
-    * *testset.csv* (contains reference strings as well)
+    * *testset.csv* (with reference strings as well)
  * **${vocabulary-class-name}/** contains the processed subsets as well as the pickled
    vocabulary:
     * *train.pt*
@@ -29,8 +29,8 @@ as a constructor parameter:
     * *test.pt*
     * *vocabulary.pt*
    
-   Please note that the three subset files need the vocabulary to be interpreted. Clearly, you
-   can use as many vocabulary classes as you want, and each one will use its own folder.  
+   Please note that the three subset files need their corresponding Vocabulary to be interpreted.
+   Clearly, you can use as many vocabulary classes as you want, and each one will use its own folder.  
 
 ## The dataset
 The E2E dataset is a dataset for training end-to-end, data-driven natural 
