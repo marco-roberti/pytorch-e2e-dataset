@@ -8,7 +8,7 @@ import zipfile
 from enum import Enum
 from functools import reduce
 from random import randint
-from typing import Type
+from typing import Type, List, Tuple
 from urllib.request import urlretrieve
 
 import torch
@@ -23,7 +23,7 @@ class SetType(Enum):
     TEST = enum.auto()
 
 
-def _extract_mr_ref(file):
+def _extract_mr_ref(file) -> Tuple[List[str], List[str]]:
     print('Processing ' + file)
     mr = []
     ref = []
@@ -36,7 +36,7 @@ def _extract_mr_ref(file):
     return mr, ref
 
 
-def _folder_contains_files(folder, files):
+def _contains_all(folder, files) -> bool:
     file_exist = map(lambda f: os.path.exists(os.path.join(folder, f)), files)
     return reduce(lambda a, b: a and b, file_exist)
 
@@ -61,8 +61,8 @@ class E2E(data.Dataset):
         self.which_set = which_set
         self.processed_folder = vocabulary_class.__name__
 
-        if _folder_contains_files(os.path.join(self.root, self.processed_folder),
-                                  [self.train_file, self.dev_file, self.test_file, self.vocabulary_file]):
+        if _contains_all(os.path.join(self.root, self.processed_folder),
+                         [self.train_file, self.dev_file, self.test_file, self.vocabulary_file]):
             with open(os.path.join(self.root, self.processed_folder, self.vocabulary_file), 'rb') as f:
                 self.vocabulary = pickle.load(f)
 
@@ -78,7 +78,7 @@ class E2E(data.Dataset):
             folder = self._download()
             self._process(folder)
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: int) -> Tuple[List[int], List[int]]:
         """
         Args:
             index (int): Index
@@ -88,10 +88,10 @@ class E2E(data.Dataset):
         """
         return self.mr[index], self.ref[index]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.mr)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         fmt_str = 'Dataset {}\n'.format(self.__class__.__name__)
         fmt_str += '\tNumber of instances: {}\n'.format(self.__len__())
         fmt_str += '\tSet type: {}\n'.format(self.which_set.name.lower())
@@ -106,7 +106,7 @@ class E2E(data.Dataset):
     def _download(self):
         """Download and process the E2E data."""
         csv_folder = os.path.join(self.root, self.csv_folder)
-        if _folder_contains_files(csv_folder, files=['trainset.csv', 'devset.csv', 'testset.csv']):
+        if _contains_all(csv_folder, files=['trainset.csv', 'devset.csv', 'testset.csv']):
             # No need to download again
             return os.path.join(self.root, self.csv_folder)
 
@@ -174,7 +174,7 @@ class E2E(data.Dataset):
 
         print('Done!')
 
-    def _strings_to_tensor(self, meaning_representations, references):
+    def _strings_to_tensor(self, meaning_representations: List[str], references: List[str]) -> List[List[List[int]]]:
         examples = []
         for mr, ref in zip(meaning_representations, references):
             mr = self.vocabulary.add_sentence(mr)
@@ -182,7 +182,7 @@ class E2E(data.Dataset):
             examples.append([mr, ref])
         return examples
 
-    def random_example(self):
+    def random_example(self) -> Tuple[str, str]:
         i = randint(0, len(self))
         mr = self[i][0]
         ref = self[i][1]
