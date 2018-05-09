@@ -1,17 +1,19 @@
 import csv
-import errno
 import os
 import os.path
 import pickle
+import shutil
 import zipfile
 from enum import Enum, auto
+from functools import reduce
 from random import randint
+from typing import Type
 from urllib import request
 
 import torch
 from torch.utils import data
 
-from lang import WordVocabulary, EOS_token
+from lang import EOS_token, AbstractVocabulary
 
 
 class SetType(Enum):
@@ -33,41 +35,47 @@ def _extract_mr_ref(file):
     return mr, ref
 
 
+def _folder_contains_files(folder, files):
+    file_exist = map(lambda f: os.path.exists(os.path.join(folder, f)), files)
+    return reduce(lambda a, b: a and b, file_exist)
+
+
 class E2E(data.Dataset):
     """`E2E <http://www.macs.hw.ac.uk/InteractionLab/E2E/>`_ Dataset.
 
     Args:
         root (string): Root directory of dataset where ``processed/train.pt``, ``processed/dev.pt``
             and  ``processed/test.pt`` exist.
-        which_set (bool, optional): If True, creates dataset from ``training.pt``,
-            otherwise from ``test.pt``.
+        which_set (SetType): Determines which of the subsets to use.
     """
     url = 'https://github.com/tuetschek/e2e-dataset/releases/download/v1.0.0/e2e-dataset.zip'
     csv_folder = 'csv'
-    processed_folder = 'processed'
     train_file = 'train.pt'
     dev_file = 'dev.pt'
     test_file = 'test.pt'
     vocabulary_file = 'vocabulary.pt'
 
-    def __init__(self, root, which_set: SetType):
+    def __init__(self, root, which_set: SetType, vocabulary_class: Type[AbstractVocabulary]):
         self.root = os.path.expanduser(root)
         self.which_set = which_set
+        self.processed_folder = vocabulary_class.__name__
 
-        if self._check_exists():
+        if _folder_contains_files(os.path.join(self.root, self.processed_folder),
+                                  [self.train_file, self.dev_file, self.test_file, self.vocabulary_file]):
             with open(os.path.join(self.root, self.processed_folder, self.vocabulary_file), 'rb') as f:
                 self.vocabulary = pickle.load(f)
-            if which_set == SetType.TRAIN:
-                self.train_mr, self.train_ref = self._load_from_file(self.dev_file)
-            elif which_set == SetType.DEV:
-                self.dev_mr, self.dev_ref = self._load_from_file(self.dev_file)
-            else:
-                assert which_set == SetType.TEST
-                self.test_mr, self.test_ref = self._load_from_file(self.test_file)
+
+            options = {
+                SetType.TRAIN: self.train_file,
+                SetType.DEV:   self.dev_file,
+                SetType.TEST:  self.test_file
+            }
+            self.mr, self.ref = self._load_from_file(options[which_set])
         else:
             print('The dataset does not exist locally!')
-            self.vocabulary = WordVocabulary()
-            self._download()
+            self.vocabulary = vocabulary_class()
+            folder = self._download()
+            self._process(folder)
 
     def __getitem__(self, index: int):
         """
@@ -77,22 +85,10 @@ class E2E(data.Dataset):
         Returns:
             tuple: (mr, ref)
         """
-        if self.which_set == SetType.TRAIN:
-            return self.train_mr[index], self.train_ref[index]
-        elif self.which_set == SetType.DEV:
-            return self.dev_mr[index], self.dev_ref[index]
-        else:
-            assert self.which_set == SetType.TEST
-            return self.test_mr[index], self.test_ref[index]
+        return self.mr[index], self.ref[index]
 
     def __len__(self):
-        if self.which_set == SetType.TRAIN:
-            return len(self.train_mr)
-        elif self.which_set == SetType.DEV:
-            return len(self.dev_mr)
-        else:
-            assert self.which_set == SetType.TEST
-            return len(self.test_mr)
+        return len(self.mr)
 
     def __repr__(self):
         fmt_str = 'Dataset {}\n'.format(self.__class__.__name__)
@@ -101,29 +97,18 @@ class E2E(data.Dataset):
         fmt_str += '\tRoot Location: {}\n'.format(self.root)
         return fmt_str
 
-    def _check_exists(self):
-        return os.path.exists(os.path.join(self.root, self.processed_folder, self.train_file)) and \
-               os.path.exists(os.path.join(self.root, self.processed_folder, self.dev_file)) and \
-               os.path.exists(os.path.join(self.root, self.processed_folder, self.test_file))
-
     def _load_from_file(self, src_file):
         src_data = torch.load(
                 os.path.join(self.root, self.processed_folder, src_file))
         return map(list, zip(*src_data))
 
     def _download(self):
-        """Download the E2E data if it doesn't exist in processed_folder already."""
-        if self._check_exists():
-            return
+        """Download and process the E2E data."""
+        csv_folder = os.path.join(self.root, self.csv_folder)
+        if _folder_contains_files(csv_folder, files=['trainset.csv', 'devset.csv', 'testset.csv']):
+            return os.path.join(self.root, self.csv_folder)
 
-        # download files
-        try:
-            os.makedirs(os.path.join(self.root, self.processed_folder))
-        except OSError as e:
-            if e.errno == errno.EEXIST:
-                pass
-            else:
-                raise
+        shutil.rmtree(os.path.join(self.root, self.csv_folder))
 
         print('Downloading ' + self.url)
         downloaded_data = request.urlopen(self.url)
@@ -136,38 +121,50 @@ class E2E(data.Dataset):
         with zipfile.ZipFile(file_path) as zip_f:
             zip_f.extractall(self.root)
         os.unlink(file_path)
-        csv_folder = os.path.join(self.root, self.csv_folder)
+
+        # Rename folder
         os.rename(os.path.join(self.root, 'e2e-dataset'), csv_folder)
-        # Delete useless files and rename new ones
+
+        # Delete/rename files
         os.remove(os.path.join(csv_folder, 'README.md'))
         os.remove(os.path.join(csv_folder, 'testset.csv'))
         os.rename(os.path.join(csv_folder, 'testset_w_refs.csv'),
                   os.path.join(csv_folder, 'testset.csv'))
 
+        return csv_folder
+
+    def _process(self, csv_folder):
         # Extract strings from CSV
-        self.train_mr, self.train_ref = _extract_mr_ref(os.path.join(csv_folder, 'trainset.csv'))
-        self.dev_mr, self.dev_ref = _extract_mr_ref(os.path.join(csv_folder, 'devset.csv'))
-        self.test_mr, self.test_ref = _extract_mr_ref(os.path.join(csv_folder, 'testset.csv'))
+        train_mr, train_ref = _extract_mr_ref(os.path.join(csv_folder, 'trainset.csv'))
+        dev_mr, dev_ref = _extract_mr_ref(os.path.join(csv_folder, 'devset.csv'))
+        test_mr, test_ref = _extract_mr_ref(os.path.join(csv_folder, 'testset.csv'))
 
         # Encode MR, REF as tensors and save them
         print('Encoding and saving examples')
-        tensor = self._strings_to_tensor(self.train_mr, self.train_ref)
-        self.train_mr, self.train_ref = map(list, zip(*tensor))
+        os.makedirs(os.path.join(self.root, self.processed_folder))
+
+        train_tensor = self._strings_to_tensor(train_mr, train_ref)
         with open(os.path.join(self.root, self.processed_folder, self.train_file), 'wb') as f:
-            torch.save(tensor, f)
+            torch.save(train_tensor, f)
 
-        tensor = self._strings_to_tensor(self.dev_mr, self.dev_ref)
-        self.dev_mr, self.dev_ref = map(list, zip(*tensor))
+        dev_tensor = self._strings_to_tensor(dev_mr, dev_ref)
         with open(os.path.join(self.root, self.processed_folder, self.dev_file), 'wb') as f:
-            torch.save(tensor, f)
+            torch.save(dev_tensor, f)
 
-        tensor = self._strings_to_tensor(self.test_mr, self.test_ref)
-        self.test_mr, self.test_ref = map(list, zip(*tensor))
+        test_tensor = self._strings_to_tensor(test_mr, test_ref)
         with open(os.path.join(self.root, self.processed_folder, self.test_file), 'wb') as f:
-            torch.save(tensor, f)
+            torch.save(test_tensor, f)
 
+        # Store the right tensor in local fields
+        options = {
+            SetType.TRAIN: train_tensor,
+            SetType.DEV:   dev_tensor,
+            SetType.TEST:  test_tensor
+        }
+        self.mr, self.ref = map(list, zip(*options[self.which_set]))
+
+        # Save the dictionary
         with open(os.path.join(self.root, self.processed_folder, self.vocabulary_file), 'wb') as f:
-            # Pickle the 'data' dictionary using the highest protocol available.
             pickle.dump(self.vocabulary, f, pickle.HIGHEST_PROTOCOL)
 
         print('Done!')

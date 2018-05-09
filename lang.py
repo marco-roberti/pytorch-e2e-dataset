@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from abc import ABC, abstractmethod
 from typing import List
 
 SOS_token = 0
@@ -15,35 +16,59 @@ def _unicode_to_ascii(s: str):
 
 
 def _split_sentence(sentence: str) -> List[str]:
-    sentence = _unicode_to_ascii(sentence)
     sentence = re.sub(r'([^A-Za-z ])', r' \1 ', sentence)
-    words = filter(lambda s: s != '', sentence.strip().split(' '))
+    words = filter(lambda s: s != '', sentence.split(' '))
     return list(words)
 
 
-class WordVocabulary:
+class AbstractVocabulary(ABC):
     def __init__(self):
-        self.word2index = {}
-        self.word2count = {}
-        self.index2word = {0: "SOS", 1: "EOS"}
-        self.n_words = 2  # Count SOS and EOS
+        self.token2index = {}
+        self.token2count = {}
+        self.index2token = {0: "<SOS>", 1: "<EOS>"}
 
-    def _add_word(self, word: str) -> int:
-        if word not in self.word2index:
-            self.word2index[word] = self.n_words
-            self.word2count[word] = 1
-            self.index2word[self.n_words] = word
-            self.n_words += 1
+    def __len__(self):
+        return len(self.index2token)
+
+    def _add_token(self, token: str) -> int:
+        if token not in self.token2index:
+            self.token2index[token] = len(self)
+            self.token2count[token] = 1
+            self.index2token[len(self)] = token
         else:
-            self.word2count[word] += 1
-        return self.word2index[word]
+            self.token2count[token] += 1
+        return self.token2index[token]
+
+    @abstractmethod
+    def add_sentence(self, sentence: str) -> List[int]:
+        pass
+
+    @abstractmethod
+    def to_string(self, sequence: List[int]) -> str:
+        pass
+
+
+class WordVocabulary(AbstractVocabulary):
 
     def add_sentence(self, sentence: str) -> List[int]:
+        sentence = _unicode_to_ascii(sentence)
         words = _split_sentence(sentence)
         sentence_enc = []
         for word in words:
-            sentence_enc.append(self._add_word(word))
+            sentence_enc.append(self._add_token(word))
         return sentence_enc
 
     def to_string(self, sequence: List[int]) -> str:
-        return ' '.join([self.index2word[i] for i in sequence])
+        return ' '.join([self.index2token[i] for i in sequence])
+
+
+class CharVocabulary(AbstractVocabulary):
+    def add_sentence(self, sentence: str) -> List[int]:
+        sentence = _unicode_to_ascii(sentence)
+        sentence_enc = []
+        for c in sentence:
+            sentence_enc.append(self._add_token(c))
+        return sentence_enc
+
+    def to_string(self, sequence: List[int]) -> str:
+        return ''.join([self.index2token[i] for i in sequence])
