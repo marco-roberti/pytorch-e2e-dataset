@@ -1,9 +1,8 @@
+# coding=utf-8
 import re
 import unicodedata
 from abc import ABC, abstractmethod
-from typing import List, Type
-
-import torch
+from typing import List
 
 SOS_token = 0
 EOS_token = 1
@@ -47,7 +46,7 @@ class AbstractVocabulary(ABC):
         pass
 
     @abstractmethod
-    def to_string(self, sequence: Type[torch.Tensor]) -> str:
+    def to_string(self, sequence: List[int]) -> str:
         pass
 
 
@@ -62,8 +61,8 @@ class WordVocabulary(AbstractVocabulary):
         sentence_enc.append(EOS_token)
         return sentence_enc
 
-    def to_string(self, sequence: Type[torch.Tensor]) -> str:
-        return ' '.join([self.index2token[i.item()] for i in sequence.squeeze()])
+    def to_string(self, sequence: List[int]) -> str:
+        return ' '.join([self.index2token[i] for i in sequence])
 
 
 class CharVocabulary(AbstractVocabulary):
@@ -75,5 +74,5 @@ class CharVocabulary(AbstractVocabulary):
         sentence_enc.append(EOS_token)
         return sentence_enc
 
-    def to_string(self, sequence: Type[torch.Tensor]) -> str:
-        return ''.join([self.index2token[i.item()] for i in sequence.squeeze()])
+    def to_string(self, sequence: List[int]) -> str:
+        return ''.join([self.index2token[i] for i in sequence])
