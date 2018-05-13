@@ -1,9 +1,12 @@
 # coding=utf-8
+import csv
 import math
+import os
 import random
 import re
 from enum import Enum
-from typing import Dict, Union
+from typing import Dict, Union, Tuple, Set
+from warnings import warn
 
 import torch
 
@@ -23,18 +26,19 @@ class E2EAttribute(Enum):
 
 
 class E2EAttrSplit(E2E):
+    _dictionaries_file = 'dictionaries.pt'
+    _partitions_file = 'partitions.pt'
+
     def __init__(self, root, which_set: E2ESet, vocabulary_class, attribute: E2EAttribute,
                  training_ratio=0.8, tolerance=0.01):
-        if which_set not in [E2ESet.TRAIN, E2ESet.DEV]:
-            raise ValueError('Only SetType.TRAIN and SetType.DEV are allowed on this class!')
         if not 0 < training_ratio < 1:
             raise ValueError('training_ratio must be between 0 and 1!')
+        _check_which_set(which_set)
 
         super(E2EAttrSplit, self).__init__(root, E2ESet.ALL_IN_ONE, vocabulary_class)
 
-        # Build MR dictionaries
-        mr_str = [self.to_string(t) for t in self.mr]
-        mr_dict = [self._mr_to_dict(s) for s in mr_str]
+        # Build MR dictionaries or get the saved ones
+        mr_dict = self._get_value_dictionaries()
 
         # Only use MRs that contain the selected attribute
         attribute = attribute.value
@@ -43,13 +47,12 @@ class E2EAttrSplit(E2E):
         self.mr, mr_dict, self.ref = [list(z) for z in zip(*data_zip)]
 
         # Partition values according to the ratio
-        values_distribution = _count_values(mr_dict, attribute)
-        self.train_values, self.dev_values = _partition_values(values_distribution, training_ratio, tolerance)
+        self.train_values, self.dev_values = self._partition_values(mr_dict, attribute, training_ratio, tolerance)
 
         # Build the two MR/REF partitions
         train_zip = list(filter(lambda z: z[1][attribute] in self.train_values, data_zip))
-        self.mr_train, _, self.ref_train = [list(z) for z in zip(*train_zip)]
         dev_zip = list(filter(lambda z: z[1][attribute] in self.dev_values, data_zip))
+        self.mr_train, _, self.ref_train = [list(z) for z in zip(*train_zip)]
         self.mr_dev, _, self.ref_dev = [list(z) for z in zip(*dev_zip)]
 
         # Choose train/dev set according to which_set
@@ -59,18 +62,93 @@ class E2EAttrSplit(E2E):
         }
         self.choose_set(which_set)
 
+    def _get_value_dictionaries(self):
+        # This file contains all the MRs as a list of dictionaries
+        dictionaries_file_name = os.path.join(self.root, self.processed_folder, self._dictionaries_file)
+        if os.path.isfile(dictionaries_file_name):
+            return torch.load(dictionaries_file_name)
+
+        with open(os.path.join(self.root, self._csv_folder, self._all_in_one_csv), 'r') as f:
+            reader = csv.reader(f, delimiter=',')
+            next(reader)
+            mr_str = [row[0] for row in reader]
+            return [self._mr_to_dict(s) for s in mr_str]
+
     def _mr_to_dict(self, mr: Union[str, torch.Tensor, list]) -> Dict[str, str]:
-        if type(mr) is not str:
-            mr = self.to_string(mr)
         attributes = {}
         for attribute in mr.split(', '):
             key_val = re.split(' *[\[\]] *', attribute)
             attributes[key_val[0]] = key_val[1]
         return attributes
 
+    # NOTE: this is the Subset Sum Problem - and it's NP-Hard! D:
+    # Approximate algorithms exist: TODO use one of them instead of this fanciful method!
+    def _partition_values(self, mr_dict: Dict[str, float], attribute: E2EAttribute,
+                          partition_ratio: float, tolerance: float) -> Tuple[Set[str], Set[str]]:
+        # This file contains all the successful partitions
+        partitions_file_name = os.path.join(self.root, self.processed_folder, self._partitions_file)
+        if os.path.isfile(partitions_file_name):
+            partitions = torch.load(partitions_file_name)
+            # If this partition has already been done, just use it
+            if (attribute, partition_ratio, tolerance) in partitions.keys():
+                return partitions[(attribute, partition_ratio, tolerance)]
+        else:
+            partitions = dict()
+
+        values_distribution = _count_values(mr_dict, attribute)
+
+        train_values = set()
+        dev_values = set(values_distribution.keys())
+        current_ratio = 0
+        tolerance_percent = tolerance * partition_ratio
+
+        # Using a counter to avoid infinite loops:
+        # the tolerance is doubled every max_cnt iterations
+        cnt = 0
+        max_cnt = 2 * len(values_distribution)
+        more_tolerance = False
+        while abs(current_ratio - partition_ratio) > tolerance_percent or \
+                len(dev_values) == 0 or len(train_values) == 0:
+            if current_ratio < partition_ratio:
+                # randomly transfer an element from dev_values to train_values
+                element = random.sample(dev_values, 1)[0]
+                dev_values.remove(element)
+                train_values.add(element)
+                # Update current ratio
+                current_ratio += values_distribution[element]
+            else:
+                # randomly transfer an element from train_values to dev_values
+                element = random.sample(train_values, 1)[0]
+                train_values.remove(element)
+                dev_values.add(element)
+                # Update current ratio
+                current_ratio -= values_distribution[element]
+
+            cnt += 1
+            if cnt == max_cnt:
+                more_tolerance = True
+                cnt = 0
+                tolerance_percent *= 2
+        if more_tolerance:
+            warn(f'The partitioning was unexpectedly complicated! Requested ratio was '
+                 f'({100 * partition_ratio:.1f} ± {100 * tolerance * partition_ratio:.1f})%, '
+                 f'but {100 * current_ratio:.2f}% is all I can do :(')
+        else:
+            # If this is a good partition, save it
+            partitions[(attribute, partition_ratio, tolerance)] = (train_values, dev_values)
+            torch.save(partitions, partitions_file_name)
+
+        return train_values, dev_values
+
     def choose_set(self, which_set: E2ESet):
+        _check_which_set(which_set)
         self.which_set = which_set
         self.mr, self.ref = self._set_chooser[which_set]
+
+
+def _check_which_set(e2e_set):
+    if e2e_set not in [E2ESet.TRAIN, E2ESet.DEV]:
+        raise ValueError('Only SetType.TRAIN and SetType.DEV are allowed on this class!')
 
 
 def _count_values(dict_list, key):
@@ -84,48 +162,3 @@ def _count_values(dict_list, key):
             counter[value] = step
     assert math.isclose(sum(counter.values()), 1)
     return counter
-
-
-# NOTE: this is the Subset Sum Problem - and it's NP-Hard! D:
-# Approximate algorithms exist: TODO use one of them instead of this fanciful method!
-def _partition_values(values_distribution, partition_ratio, tolerance):
-    train_values = set()
-    dev_values = set(values_distribution.keys())
-    # print('all values are', dev_values)
-    current_ratio = 0
-    tolerance_percent = tolerance * partition_ratio
-
-    # Using a counter to avoid infinite loops:
-    # the tolerance is doubled every max_cnt iterations
-    cnt = 0
-    max_cnt = 2 * len(values_distribution)
-    warn = False
-    while abs(current_ratio - partition_ratio) > tolerance_percent \
-            and (len(dev_values) == 0 or len(train_values) == 0):
-        if current_ratio < partition_ratio:
-            # randomly transfer an element from dev_values to train_values
-            element = random.sample(dev_values, 1)[0]
-            dev_values.remove(element)
-            train_values.add(element)
-            # Update current ratio
-            current_ratio += values_distribution[element]
-        else:
-            # randomly transfer an element from train_values to dev_values
-            element = random.sample(train_values, 1)[0]
-            train_values.remove(element)
-            dev_values.add(element)
-            # Update current ratio
-            current_ratio -= values_distribution[element]
-
-        cnt += 1
-        if cnt == max_cnt:
-            warn = True
-            cnt = 0
-            tolerance_percent *= 2
-    if warn:
-        print('[WARNING] The partitioning was unexpectedly complicated! '
-              'Requested ratio was ({:.1f} ± {:.1f})%, '
-              'but {:.2f}% is all I can do :('.format(100 * partition_ratio,
-                                                      100 * tolerance * partition_ratio,
-                                                      100 * current_ratio))
-    return train_values, dev_values

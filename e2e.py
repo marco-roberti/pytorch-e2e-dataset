@@ -3,7 +3,6 @@ import csv
 import enum
 import os
 import os.path
-import pickle
 import shutil
 import zipfile
 from enum import Enum
@@ -33,7 +32,13 @@ class E2E(data.Dataset):
         which_set (E2ESet): Determines which of the subsets to use.
     """
     _url = 'https://github.com/tuetschek/e2e-dataset/releases/download/v1.0.0/e2e-dataset.zip'
+
     _csv_folder = 'csv'
+    _train_csv = 'trainset.csv'
+    _dev_csv = 'devset.csv'
+    _test_csv = 'testset.csv'
+    _all_in_one_csv = 'all_in_one.csv'
+
     _train_file = 'train.pt'
     _dev_file = 'dev.pt'
     _test_file = 'test.pt'
@@ -49,7 +54,7 @@ class E2E(data.Dataset):
         if _contains_all(os.path.join(self.root, self.processed_folder),
                          [self._train_file, self._dev_file, self._test_file, self._vocabulary_file]):
             with open(os.path.join(self.root, self.processed_folder, self._vocabulary_file), 'rb') as f:
-                self.vocabulary = pickle.load(f)
+                self.vocabulary = torch.load(f)
 
             options = {
                 E2ESet.TRAIN:      self._train_file,
@@ -64,7 +69,7 @@ class E2E(data.Dataset):
             folder = self._download()
             self._process(folder)
 
-    def __getitem__(self, index: int) -> Tuple[List[int], List[int]]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
             index (int): Index
@@ -72,8 +77,8 @@ class E2E(data.Dataset):
         Returns:
             tuple: (mr, ref)
         """
-        return (torch.LongTensor(self.mr[index]),
-                torch.LongTensor(self.ref[index]))
+        return (torch.tensor(self.mr[index]),
+                torch.tensor(self.ref[index]))
 
     def __len__(self) -> int:
         return len(self.mr)
@@ -93,7 +98,7 @@ class E2E(data.Dataset):
     def _download(self):
         """Download and process the E2E data."""
         csv_folder = os.path.join(self.root, self._csv_folder)
-        if _contains_all(csv_folder, files=['trainset.csv', 'devset.csv', 'testset.csv']):
+        if _contains_all(csv_folder, files=[self._train_csv, self._dev_csv, self._test_csv, self._all_in_one_csv]):
             # No need to download again
             return os.path.join(self.root, self._csv_folder)
 
@@ -105,7 +110,7 @@ class E2E(data.Dataset):
             pass
         os.makedirs(csv_folder)
 
-        print('Downloading ' + self._url)
+        print(f'Downloading {self._url}')
         zip_path = os.path.join(self.root, 'e2e-dataset.zip')
         urlretrieve(self._url, zip_path)
 
@@ -120,14 +125,14 @@ class E2E(data.Dataset):
         os.remove(os.path.join(csv_folder, 'README.md'))
         os.remove(os.path.join(csv_folder, 'testset.csv'))
         os.rename(os.path.join(csv_folder, 'testset_w_refs.csv'),
-                  os.path.join(csv_folder, 'testset.csv'))
+                  os.path.join(csv_folder, self._test_csv))
 
         # Create all_in_one.csv
-        all_in_one_name = os.path.join(csv_folder, 'all_in_one.csv')
+        all_in_one_name = os.path.join(csv_folder, self._all_in_one_csv)
         seen = set()  # set for fast O(1) amortized lookup
         with open(all_in_one_name, 'w') as all_in_one:
             all_in_one.write('md, ref\n')
-            for file in ['trainset.csv', 'devset.csv', 'testset.csv']:
+            for file in [self._train_csv, self._dev_csv, self._test_csv]:
                 with open(os.path.join(csv_folder, file), 'r') as in_file:
                     next(in_file)
                     for line in in_file:
@@ -140,10 +145,10 @@ class E2E(data.Dataset):
 
     def _process(self, csv_folder):
         # Extract strings from CSV
-        train_mr, train_ref = _extract_mr_ref(os.path.join(csv_folder, 'trainset.csv'))
-        dev_mr, dev_ref = _extract_mr_ref(os.path.join(csv_folder, 'devset.csv'))
-        test_mr, test_ref = _extract_mr_ref(os.path.join(csv_folder, 'testset.csv'))
-        all_in_one_mr, all_in_one_ref = _extract_mr_ref(os.path.join(csv_folder, 'all_in_one.csv'))
+        train_mr, train_ref = _extract_mr_ref(os.path.join(csv_folder, self._train_csv))
+        dev_mr, dev_ref = _extract_mr_ref(os.path.join(csv_folder, self._dev_csv))
+        test_mr, test_ref = _extract_mr_ref(os.path.join(csv_folder, self._test_csv))
+        all_in_one_mr, all_in_one_ref = _extract_mr_ref(os.path.join(csv_folder, self._all_in_one_csv))
 
         # Encode MR, REF as tensors and save them
         print('Encoding and saving examples')
@@ -176,7 +181,7 @@ class E2E(data.Dataset):
 
         # Save the dictionary
         with open(os.path.join(self.root, self.processed_folder, self._vocabulary_file), 'wb') as f:
-            pickle.dump(self.vocabulary, f, pickle.HIGHEST_PROTOCOL)
+            torch.save(self.vocabulary, f)
 
         print('Done!')
 
@@ -186,12 +191,16 @@ class E2E(data.Dataset):
             mr = self.vocabulary.add_sentence(mr)
             ref = self.vocabulary.add_sentence(ref)
             examples.append([mr, ref])
+        examples.sort(key=lambda e: len(e[0]))
         return examples
 
     def to_string(self, tensor: Union[torch.Tensor, list]):
         if type(tensor) is torch.Tensor:
             tensor = tensor.squeeze().tolist()
         return self.vocabulary.to_string(tensor)
+
+    def vocabulary_size(self) -> int:
+        return len(self.vocabulary)
 
 
 def _contains_all(folder, files) -> bool:
@@ -200,7 +209,7 @@ def _contains_all(folder, files) -> bool:
 
 
 def _extract_mr_ref(file) -> Tuple[List[str], List[str]]:
-    print('Processing ' + file)
+    print(f'Processing {file}')
     mr = []
     ref = []
     with open(file, 'r') as csv_file:
