@@ -8,20 +8,6 @@ SOS_token = 0
 EOS_token = 1
 
 
-def _unicode_to_ascii(s: str):
-    """Turn a Unicode string to plain ASCII, thanks to http://stackoverflow.com/a/518232/2809427"""
-    return ''.join(
-            c for c in unicodedata.normalize('NFD', s)
-            if unicodedata.category(c) != 'Mn'
-    )
-
-
-def _split_sentence(sentence: str) -> List[str]:
-    sentence = re.sub(r'([^A-Za-z ])', r' \1 ', sentence)
-    words = filter(lambda s: s != '', sentence.split(' '))
-    return list(words)
-
-
 class AbstractVocabulary(ABC):
     def __init__(self):
         self.token2index = {}
@@ -84,3 +70,17 @@ class CharVocabulary(AbstractVocabulary):
         else:
             eos_position = len(sequence)
         return ''.join([self.index2token[i] for i in sequence[:eos_position]])
+
+
+def _split_sentence(sentence: str) -> List[str]:
+    sentence = re.sub(r'([^A-Za-z ])', r' \1 ', sentence)
+    words = filter(lambda s: s != '', sentence.split(' '))
+    return list(words)
+
+
+def _unicode_to_ascii(s: str):
+    """Turn a Unicode string to plain ASCII, thanks to http://stackoverflow.com/a/518232/2809427"""
+    return ''.join(
+            c for c in unicodedata.normalize('NFD', s)
+            if unicodedata.category(c) != 'Mn'
+    )

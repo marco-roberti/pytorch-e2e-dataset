@@ -13,16 +13,16 @@ import torch
 from e2e import E2E, E2ESet
 
 
-# NOTE: 'familyFriendly' and 'area' are not included because the have only 2 possible values, that is too few to split
+# NOTE: 'familyFriendly' and 'area' are not included because they have only 2 possible values, that is too few to split
 class E2EAttribute(Enum):
-    NAME = 'name'
-    PRICE_RANGE = 'priceRange'
-    NEAR = 'near'
     CUSTOMER_RATING = 'customer rating'
-    FOOD = 'food'
     EAT_TYPE = 'eatType'
-    # FAMILY_FRIENDLY = 'familyFriendly'
+    FOOD = 'food'
+    NAME = 'name'
+    NEAR = 'near'
+    PRICE_RANGE = 'priceRange'
     # AREA = 'area'
+    # FAMILY_FRIENDLY = 'familyFriendly'
 
 
 class E2EAttrSplit(E2E):
@@ -72,14 +72,7 @@ class E2EAttrSplit(E2E):
             reader = csv.reader(f, delimiter=',')
             next(reader)
             mr_str = [row[0] for row in reader]
-            return [self._mr_to_dict(s) for s in mr_str]
-
-    def _mr_to_dict(self, mr: Union[str, torch.Tensor, list]) -> Dict[str, str]:
-        attributes = {}
-        for attribute in mr.split(', '):
-            key_val = re.split(' *[\[\]] *', attribute)
-            attributes[key_val[0]] = key_val[1]
-        return attributes
+            return [_mr_to_dict(s) for s in mr_str]
 
     # NOTE: this is the Subset Sum Problem - and it's NP-Hard! D:
     # Approximate algorithms exist: TODO use one of them instead of this fanciful method!
@@ -162,3 +155,11 @@ def _count_values(dict_list, key):
             counter[value] = step
     assert math.isclose(sum(counter.values()), 1)
     return counter
+
+
+def _mr_to_dict(mr: Union[str, torch.Tensor, list]) -> Dict[str, str]:
+    attributes = {}
+    for attribute in mr.split(', '):
+        key_val = re.split(' *[\[\]] *', attribute)
+        attributes[key_val[0]] = key_val[1]
+    return attributes

@@ -90,11 +90,6 @@ class E2E(data.Dataset):
         fmt_str += '\tRoot Location: {}\n'.format(self.root)
         return fmt_str
 
-    def _load_from_file(self, src_file):
-        src_data = torch.load(
-                os.path.join(self.root, self.processed_folder, src_file))
-        return [list(z) for z in zip(*src_data)]
-
     def _download(self):
         """Download and process the E2E data."""
         csv_folder = os.path.join(self.root, self._csv_folder)
@@ -142,6 +137,11 @@ class E2E(data.Dataset):
 
         os.remove(zip_path)
         return csv_folder
+
+    def _load_from_file(self, src_file):
+        src_data = torch.load(
+                os.path.join(self.root, self.processed_folder, src_file))
+        return [list(z) for z in zip(*src_data)]
 
     def _process(self, csv_folder):
         # Extract strings from CSV
