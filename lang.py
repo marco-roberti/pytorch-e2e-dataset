@@ -4,15 +4,20 @@ import unicodedata
 from abc import ABC, abstractmethod
 from typing import List
 
-SOS_token = 0
-EOS_token = 1
+PAD_token = 0
+SOS_token = 1
+EOS_token = 2
 
 
 class AbstractVocabulary(ABC):
     def __init__(self):
         self.token2index = {}
         self.token2count = {}
-        self.index2token = {0: "<SOS>", 1: "<EOS>"}
+        self.index2token = {
+            PAD_token: '<PAD>',
+            SOS_token: '<SOS>',
+            EOS_token: '<EOS>'
+        }
 
     def __len__(self):
         return len(self.index2token)
