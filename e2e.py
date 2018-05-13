@@ -219,3 +219,19 @@ def _extract_mr_ref(file) -> Tuple[List[str], List[str]]:
             mr.append(row[0])
             ref.append(row[1])
     return mr, ref
+
+
+def collate_fn(batch):
+    if len(batch) > 1:
+        max_mr_len = max([example[0].size()[0] for example in batch])
+        max_ref_len = max([example[1].size()[0] for example in batch])
+        for i, (mr, ref) in enumerate(batch):
+            mr_pad = max_mr_len - mr.size()[0]
+            ref_pad = max_ref_len - ref.size()[0]
+            batch[i] = (
+                # zero-padded MR
+                torch.cat([mr, torch.zeros(mr_pad).type(mr.dtype)]),
+                # zero-padded REF
+                torch.cat([ref, torch.zeros(ref_pad).type(ref.dtype)])
+            )
+    return batch

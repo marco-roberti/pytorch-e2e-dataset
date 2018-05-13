@@ -62,7 +62,11 @@ class WordVocabulary(AbstractVocabulary):
         return sentence_enc
 
     def to_string(self, sequence: List[int]) -> str:
-        return ' '.join([self.index2token[i] for i in sequence])
+        if EOS_token in sequence:
+            eos_position = sequence.index(EOS_token)
+        else:
+            eos_position = len(sequence)
+        return ' '.join([self.index2token[i] for i in sequence[:eos_position]])
 
 
 class CharVocabulary(AbstractVocabulary):
@@ -75,4 +79,8 @@ class CharVocabulary(AbstractVocabulary):
         return sentence_enc
 
     def to_string(self, sequence: List[int]) -> str:
-        return ''.join([self.index2token[i] for i in sequence])
+        if EOS_token in sequence:
+            eos_position = sequence.index(EOS_token)
+        else:
+            eos_position = len(sequence)
+        return ''.join([self.index2token[i] for i in sequence[:eos_position]])

@@ -23,21 +23,27 @@ and enjoy!
 # coding=utf-8
 from torch.utils.data import DataLoader
 
-from e2e import E2E, E2ESet
+from e2e import E2E, E2ESet, collate_fn
 from lang import WordVocabulary
 
 dataset = E2E('./data', E2ESet.TEST, vocabulary_class=WordVocabulary)
-data_loader = DataLoader(dataset, shuffle=True)
+data_loader = DataLoader(dataset, batch_size=10, collate_fn=collate_fn)
 
-mr, ref = next(iter(data_loader))
+batch = next(iter(data_loader))
+example = batch[0]
+print(f"My batch is a list containing {len(batch)} {type(example).__name__}s of size {len(example)}.\n")
 
-print('mr is a {} {} of size {}.'.format(mr.dtype, type(mr).__name__, tuple(mr.size())))
-print('ref is a {} {} of size {}.'.format(ref.dtype, type(ref).__name__, tuple(ref.size())))
+mr, ref = example
+print(f'mr is a {mr.dtype} {type(mr).__name__} of size {list(mr.size())}:\n\t{dataset.to_string(mr)}')
+print(f'ref is a {ref.dtype} {type(ref).__name__} of size {list(ref.size())}:\n\t{dataset.to_string(ref)}')
 
 # Output:
-# mr is a torch.int64 Tensor of size (1, 42).
-# ref is a torch.int64 Tensor of size (1, 29).
-
+# My batch is a list containing 10 tuples of size 2.
+#
+# mr is a torch.int64 Tensor of size [16]:
+# 	name [ Wildwood ] , eatType [ pub ] , area [ riverside ]
+# ref is a torch.int64 Tensor of size [14]:
+# 	A pub named Wildwood is located at the riverside .
 ```
 
 ## Generated directories
