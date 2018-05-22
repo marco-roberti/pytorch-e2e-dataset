@@ -42,7 +42,6 @@ class AbstractVocabulary(ABC):
 
 
 class WordVocabulary(AbstractVocabulary):
-
     def add_sentence(self, sentence: str) -> List[int]:
         sentence = _unicode_to_ascii(sentence)
         words = _split_sentence(sentence)
@@ -75,6 +74,9 @@ class CharVocabulary(AbstractVocabulary):
         else:
             eos_position = len(sequence)
         return ''.join([self.index2token[i] for i in sequence[:eos_position]])
+
+    def __str__(self):
+        return ''.join(self.token2index.keys())
 
 
 def _split_sentence(sentence: str) -> List[str]:

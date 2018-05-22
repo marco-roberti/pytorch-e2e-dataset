@@ -3,6 +3,7 @@ import csv
 import enum
 import os
 import os.path
+import random
 import shutil
 import zipfile
 from enum import Enum
@@ -69,7 +70,7 @@ class E2E(data.Dataset):
             folder = self._download()
             self._process(folder)
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
             index (int): Index
@@ -77,8 +78,11 @@ class E2E(data.Dataset):
         Returns:
             tuple: (mr, ref)
         """
-        return (torch.tensor(self.mr[index]),
-                torch.tensor(self.ref[index]))
+        return self.mr[index], self.ref[index]
+
+    def __setitem__(self, key, value):
+        self.mr[key] = value[0]
+        self.ref[key] = value[1]
 
     def __len__(self) -> int:
         return len(self.mr)
@@ -105,7 +109,7 @@ class E2E(data.Dataset):
             pass
         os.makedirs(csv_folder)
 
-        print(f'Downloading {self._url}')
+        print('Downloading {}'.format(self._url))
         zip_path = os.path.join(self.root, 'e2e-dataset.zip')
         urlretrieve(self._url, zip_path)
 
@@ -154,18 +158,22 @@ class E2E(data.Dataset):
         print('Encoding and saving examples')
         os.makedirs(os.path.join(self.root, self.processed_folder))
 
+        print('\ttrain set')
         train_list = self._strings_to_list(train_mr, train_ref)
         with open(os.path.join(self.root, self.processed_folder, self._train_file), 'wb') as f:
             torch.save(train_list, f)
 
+        print('\tdev set')
         dev_list = self._strings_to_list(dev_mr, dev_ref)
         with open(os.path.join(self.root, self.processed_folder, self._dev_file), 'wb') as f:
             torch.save(dev_list, f)
 
+        print('\ttest set')
         test_list = self._strings_to_list(test_mr, test_ref)
         with open(os.path.join(self.root, self.processed_folder, self._test_file), 'wb') as f:
             torch.save(test_list, f)
 
+        print('Merging the 3 sets in an all_in_one file')
         all_in_one_list = self._strings_to_list(all_in_one_mr, all_in_one_ref)
         with open(os.path.join(self.root, self.processed_folder, self._all_in_one_file), 'wb') as f:
             torch.save(all_in_one_list, f)
@@ -180,6 +188,7 @@ class E2E(data.Dataset):
         self.mr, self.ref = [list(z) for z in zip(*options[self.which_set])]
 
         # Save the dictionary
+        print('Saving the dictionary')
         with open(os.path.join(self.root, self.processed_folder, self._vocabulary_file), 'wb') as f:
             torch.save(self.vocabulary, f)
 
@@ -193,6 +202,15 @@ class E2E(data.Dataset):
             examples.append([mr, ref])
         examples.sort(key=lambda e: len(e[0]))
         return examples
+
+    def test_model(self, model, num_tests):
+        for i in range(num_tests):
+            mr, ref = random.choice(self)
+            ref_ = model(mr.unsqueeze_(0)).squeeze()
+            ref_ = ref_.argmax(1)
+            print('MR : {}'.format(self.to_string(mr)))
+            print('REF: {}'.format(self.to_string(ref)))
+            print('GEN: {}'.format(self.to_string(ref_)))
 
     def to_string(self, tensor: Union[torch.Tensor, list]):
         if type(tensor) is torch.Tensor:
@@ -209,7 +227,7 @@ def _contains_all(folder, files) -> bool:
 
 
 def _extract_mr_ref(file) -> Tuple[List[str], List[str]]:
-    print(f'Processing {file}')
+    print('Processing {}'.format(file))
     mr = []
     ref = []
     with open(file, 'r') as csv_file:
@@ -219,19 +237,3 @@ def _extract_mr_ref(file) -> Tuple[List[str], List[str]]:
             mr.append(row[0])
             ref.append(row[1])
     return mr, ref
-
-
-def collate_fn(batch):
-    if len(batch) > 1:
-        max_mr_len = max([example[0].size()[0] for example in batch])
-        max_ref_len = max([example[1].size()[0] for example in batch])
-        for i, (mr, ref) in enumerate(batch):
-            mr_pad = max_mr_len - mr.size()[0]
-            ref_pad = max_ref_len - ref.size()[0]
-            batch[i] = (
-                # zero-padded MR
-                torch.cat([mr, torch.zeros(mr_pad).type(mr.dtype)]),
-                # zero-padded REF
-                torch.cat([ref, torch.zeros(ref_pad).type(ref.dtype)])
-            )
-    return batch
