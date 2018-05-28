@@ -19,8 +19,8 @@ from lang import AbstractVocabulary
 
 class E2ESet(Enum):
     TRAIN = enum.auto()
-    DEV = enum.auto()
-    TEST = enum.auto()
+    DEV = enum.auto()  # tuning
+    TEST = enum.auto()  # NO tuning
     ALL_IN_ONE = enum.auto()
 
 

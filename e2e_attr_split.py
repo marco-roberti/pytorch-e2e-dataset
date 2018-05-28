@@ -1,5 +1,4 @@
 # coding=utf-8
-import csv
 import math
 import os
 import random
@@ -26,7 +25,6 @@ class E2EAttribute(Enum):
 
 
 class E2EAttrSplit(E2E):
-    _dictionaries_file = 'dictionaries.pt'
     _partitions_file = 'partitions.pt'
 
     def __init__(self, root, which_set: E2ESet, vocabulary_class, attribute: E2EAttribute,
@@ -37,8 +35,8 @@ class E2EAttrSplit(E2E):
 
         super(E2EAttrSplit, self).__init__(root, E2ESet.ALL_IN_ONE, vocabulary_class)
 
-        # Build MR dictionaries or get the saved ones
-        mr_dict = self._get_value_dictionaries()
+        # Build MR dictionaries
+        mr_dict = [_mr_to_dict(self.to_string(example)) for example in self.mr]
 
         # Only use MRs that contain the selected attribute
         attribute = attribute.value
@@ -61,18 +59,6 @@ class E2EAttrSplit(E2E):
             E2ESet.DEV:   (self.mr_dev, self.ref_dev)
         }
         self.choose_set(which_set)
-
-    def _get_value_dictionaries(self):
-        # This file contains all the MRs as a list of dictionaries
-        dictionaries_file_name = os.path.join(self.root, self.processed_folder, self._dictionaries_file)
-        if os.path.isfile(dictionaries_file_name):
-            return torch.load(dictionaries_file_name)
-
-        with open(os.path.join(self.root, self._csv_folder, self._all_in_one_csv), 'r') as f:
-            reader = csv.reader(f, delimiter=',')
-            next(reader)
-            mr_str = [row[0] for row in reader]
-            return [_mr_to_dict(s) for s in mr_str]
 
     # NOTE: this is the Subset Sum Problem - and it's NP-Hard! D:
     # Approximate algorithms exist: maybe-TODO use one of them instead of this fanciful method?
@@ -123,8 +109,8 @@ class E2EAttrSplit(E2E):
                 cnt = 0
                 tolerance_percent *= 2
         if more_tolerance:
-            warn('The partitioning was unexpectedly complicated! Requested ratio was',
-                 '({:.1f} ± {:.1f})%,'.format(100 * partition_ratio, 100 * tolerance * partition_ratio),
+            warn('The partitioning was unexpectedly complicated! Requested ratio was ' +
+                 '({:.1f} ± {:.1f})%,'.format(100 * partition_ratio, 100 * tolerance * partition_ratio) +
                  'but {:.2f}% is all I can do :('.format(100 * current_ratio))
         else:
             # If this is a good partition, save it

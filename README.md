@@ -124,11 +124,10 @@ dataset.choose_set(E2ESet.DEV)
 ```
 
 ### Generated directories
-The ```E2EAttrSplit``` subclass will create two additional files inside the
-**${vocabulary-class-name}/** directory, *partitions.pt* and
-*value_dictionaries.pt*, that contain some useful information to coherently
-reuse partitions and avoid to repeat the same data processing from one
-execution to another.
+The ```E2EAttrSplit``` subclass will create an additional file inside the
+**${vocabulary-class-name}/** directory, *partitions.pt*, that contains some
+useful information to coherently reuse partitions and avoid to repeat the same
+data processing from one execution to another.
 
 ## The dataset
 The E2E dataset is a dataset for training end-to-end, data-driven natural 

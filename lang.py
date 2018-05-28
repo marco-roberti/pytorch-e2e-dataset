@@ -40,6 +40,10 @@ class AbstractVocabulary(ABC):
     def to_string(self, sequence: List[int]) -> str:
         pass
 
+    @abstractmethod
+    def to_list(self, sequence: str) -> List[int]:
+        pass
+
 
 class WordVocabulary(AbstractVocabulary):
     def add_sentence(self, sentence: str) -> List[int]:
@@ -50,6 +54,11 @@ class WordVocabulary(AbstractVocabulary):
             sentence_enc.append(self._add_token(word))
         sentence_enc.append(EOS_token)
         return sentence_enc
+
+    def to_list(self, sentence: str) -> List[int]:
+        sentence = _unicode_to_ascii(sentence)
+        words = _split_sentence(sentence)
+        return [self.token2index[w] for w in words]
 
     def to_string(self, sequence: List[int]) -> str:
         if EOS_token in sequence:
@@ -67,6 +76,10 @@ class CharVocabulary(AbstractVocabulary):
             sentence_enc.append(self._add_token(c))
         sentence_enc.append(EOS_token)
         return sentence_enc
+
+    def to_list(self, sentence: str) -> List[int]:
+        sentence = _unicode_to_ascii(sentence)
+        return [self.token2index[c] for c in sentence]
 
     def to_string(self, sequence: List[int]) -> str:
         if EOS_token in sequence:
