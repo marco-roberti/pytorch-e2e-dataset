@@ -49,7 +49,9 @@ class E2EAttrSplit(E2E):
 
         # Build the two MR/REF partitions
         train_zip = list(filter(lambda z: z[1][attribute] in self.train_values, data_zip))
+        train_zip.sort(key=lambda z: z[0])
         dev_zip = list(filter(lambda z: z[1][attribute] in self.dev_values, data_zip))
+        dev_zip.sort(key=lambda z: z[0])
         self.mr_train, _, self.ref_train = [list(z) for z in zip(*train_zip)]
         self.mr_dev, _, self.ref_dev = [list(z) for z in zip(*dev_zip)]
 
