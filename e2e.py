@@ -203,6 +203,14 @@ class E2E(data.Dataset):
         examples.sort(key=lambda e: len(e[0]))
         return examples
 
+    def sort(self):
+        """Sorts the examples by mr"""
+        data_zip = list(zip(self.mr, self.ref))
+        data_zip.sort(key=lambda example: example[0])
+        unzip = list(zip(*data_zip))
+        self.mr = list(unzip[0])
+        self.ref = list(unzip[1])
+
     def test_model(self, model, num_tests):
         for i in range(num_tests):
             mr, ref = random.choice(self)

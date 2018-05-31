@@ -22,14 +22,22 @@ class E2ENames(E2E):
             E2ESet.TEST:  new_york[validation_testing:]
         }
 
-        num_names = len(names[which_set])
+        # Actual replacements
+        self.sort()
+        num_restaurants = len(names[which_set])
+        i_restaurant = 0
+        last_mr = self.mr[0]
         for i in range(len(self)):
             mr, ref = self.mr[i], self.ref[i]
+
+            if mr != last_mr:
+                i_restaurant = (i_restaurant + 1) % num_restaurants
+            last_mr = mr
 
             mr_str = self.to_string(mr)
             ref_str = self.to_string(ref)
 
-            new_restaurant = names[which_set][i % num_names]
+            new_restaurant = names[which_set][i_restaurant]
             old_restaurant = re.match(r'name\[([A-Za-z ]+)\]', mr_str)[1]
 
             mr_sub = re.sub(old_restaurant, new_restaurant, mr_str)
