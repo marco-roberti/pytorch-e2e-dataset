@@ -58,7 +58,7 @@ class WordVocabulary(AbstractVocabulary):
     def to_list(self, sentence: str) -> List[int]:
         sentence = _unicode_to_ascii(sentence)
         words = _split_sentence(sentence)
-        return [self.token2index[w] for w in words]
+        return [self.token2index[w] for w in words] + [EOS_token]
 
     def to_string(self, sequence: List[int]) -> str:
         if EOS_token in sequence:
@@ -79,7 +79,7 @@ class CharVocabulary(AbstractVocabulary):
 
     def to_list(self, sentence: str) -> List[int]:
         sentence = _unicode_to_ascii(sentence)
-        return [self.token2index[c] for c in sentence]
+        return [self.token2index[c] for c in sentence] + [EOS_token]
 
     def to_string(self, sequence: List[int]) -> str:
         if EOS_token in sequence:
