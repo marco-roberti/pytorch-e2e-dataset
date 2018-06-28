@@ -1,5 +1,6 @@
 # coding=utf-8
 import re
+import string
 import unicodedata
 from abc import ABC, abstractmethod
 from typing import List
@@ -37,11 +38,11 @@ class AbstractVocabulary(ABC):
         pass
 
     @abstractmethod
-    def to_string(self, sequence: List[int]) -> str:
+    def to_list(self, sequence: str) -> List[int]:
         pass
 
     @abstractmethod
-    def to_list(self, sequence: str) -> List[int]:
+    def to_string(self, sequence: List[int]) -> str:
         pass
 
 
@@ -69,13 +70,21 @@ class WordVocabulary(AbstractVocabulary):
 
 
 class CharVocabulary(AbstractVocabulary):
+
+    def __init__(self):
+        super().__init__()
+        ascii_vocabulary = string.printable
+        for c in ascii_vocabulary:
+            self._add_token(c)
+
+    def __str__(self):
+        return ''.join(self.token2index.keys())
+
     def add_sentence(self, sentence: str) -> List[int]:
         sentence = _unicode_to_ascii(sentence)
-        sentence_enc = []
         for c in sentence:
-            sentence_enc.append(self._add_token(c))
-        sentence_enc.append(EOS_token)
-        return sentence_enc
+            self._add_token(c)
+        return self.to_list(sentence)
 
     def to_list(self, sentence: str) -> List[int]:
         sentence = _unicode_to_ascii(sentence)
@@ -87,9 +96,6 @@ class CharVocabulary(AbstractVocabulary):
         else:
             eos_position = len(sequence)
         return ''.join([self.index2token[i] for i in sequence[:eos_position]])
-
-    def __str__(self):
-        return ''.join(self.token2index.keys())
 
 
 def _split_sentence(sentence: str) -> List[str]:

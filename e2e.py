@@ -3,7 +3,6 @@ import csv
 import enum
 import os
 import os.path
-import random
 import shutil
 import zipfile
 from enum import Enum
@@ -210,15 +209,6 @@ class E2E(data.Dataset):
         unzip = list(zip(*data_zip))
         self.mr = list(unzip[0])
         self.ref = list(unzip[1])
-
-    def test_model(self, model, num_tests):
-        for i in range(num_tests):
-            mr, ref = random.choice(self)
-            ref_ = model(mr.unsqueeze_(0)).squeeze()
-            ref_ = ref_.argmax(1)
-            print('MR : {}'.format(self.to_string(mr)))
-            print('REF: {}'.format(self.to_string(ref)))
-            print('GEN: {}'.format(self.to_string(ref_)))
 
     def to_string(self, tensor: Union[torch.Tensor, list]):
         if type(tensor) is torch.Tensor:

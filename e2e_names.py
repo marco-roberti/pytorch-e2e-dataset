@@ -12,7 +12,7 @@ class E2ENames(E2E):
         for restaurant in new_york:
             self.vocabulary.add_sentence(restaurant)
 
-        # E2E is split into training, validation and testing sets in a 76.5-8.5-15 ratio
+        # According to its paper, E2E dataset is split into training, validation and testing sets in a 76.5-8.5-15 ratio
         new_york_len = len(new_york)
         train_validation = floor(0.765 * new_york_len)
         validation_testing = ceil(0.85 * new_york_len)
@@ -38,15 +38,16 @@ class E2ENames(E2E):
             ref_str = self.to_string(ref)
 
             new_restaurant = names[which_set][i_restaurant]
-            old_restaurant = re.match(r'name\[([A-Za-z ]+)\]', mr_str)[1]
+            old_restaurant = re.match(r'name ?\[ *([A-Za-z ]*[A-Za-z]) *\]', mr_str)[1]
 
             mr_sub = re.sub(old_restaurant, new_restaurant, mr_str)
             ref_sub = re.sub(old_restaurant, new_restaurant, ref_str)
 
-            self.mr[i] = self.vocabulary.to_list(mr_sub)
-            self.ref[i] = self.vocabulary.to_list(ref_sub)
+            self.mr[i] = self.vocabulary.add_sentence(mr_sub)
+            self.ref[i] = self.vocabulary.add_sentence(ref_sub)
 
 
+# noinspection SpellCheckingInspection
 new_york = ['Natalino', 'Indian Cafe', 'Manhattan Plaza Cafe', 'The Stanhope', 'Chez Napoleon', 'Au Mandarin',
             'SUSHISAY', 'Brasserie', 'Popover Cafe', '107 West', 'Le Train Bleu', 'Bridge Cafe', 'Indian Oven',
             'Solera', 'Automatic Slim\'s', 'Freddie & Pepper Pizza', 'LUTECE', 'Nanni Il Valletto', 'Mezzogiorno',

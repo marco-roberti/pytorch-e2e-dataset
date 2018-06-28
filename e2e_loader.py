@@ -16,6 +16,20 @@ class E2EDataLoader(DataLoader):
         super().__init__(dataset, batch_size, shuffle, sampler, batch_sampler, num_workers, _collate_fn, pin_memory,
                          drop_last, timeout, worker_init_fn)
 
+    def test_model(self, model, num_tests):
+        self_iter = self.__iter__()
+        mr = ref = lengths = None
+        for i in range(num_tests):
+            i = i % self.batch_size
+            if i == 0:
+                mr, ref = next(self_iter)
+                mr, lengths = mr
+            ref_ = model((mr[i, :lengths[i]].unsqueeze(0), [lengths[i]])).squeeze()
+            _, ref_ = ref_.topk(1)
+            print('MR : {}'.format(self.dataset.to_string(mr[i].tolist())))
+            print('REF: {}'.format(self.dataset.to_string(ref[i].tolist())))
+            print('GEN: {}'.format(self.dataset.to_string(ref_.data.squeeze().tolist())))
+
 
 def _collate_fn(batch):
     batch = sorted(batch, key=lambda example: len(example[0]), reverse=True)
@@ -24,10 +38,10 @@ def _collate_fn(batch):
     max_mr_len = max(mr_lengths)
     max_ref_len = max([len(example[1]) for example in batch])
 
-    mrs = [_pad_sequence(mr, max_mr_len) for _, (mr, _) in enumerate(batch)]
-    refs = [_pad_sequence(ref, max_ref_len) for _, (_, ref) in enumerate(batch)]
+    mrs = torch.LongTensor([_pad_sequence(mr, max_mr_len) for _, (mr, _) in enumerate(batch)])
+    refs = torch.LongTensor([_pad_sequence(ref, max_ref_len) for _, (_, ref) in enumerate(batch)])
 
-    return mrs, refs, mr_lengths, max_ref_len
+    return (mrs, mr_lengths), refs
 
 
 def _pad_sequence(sequence, length):
