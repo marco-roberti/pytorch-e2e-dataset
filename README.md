@@ -18,16 +18,13 @@ Once instantiated your ```E2E``` object, just use it as a normal PyTorch
 ```DataSet```. If you want to take advantage of a [```DataLoader```](https://pytorch.org/docs/master/data.html#torch.utils.data.DataLoader),
 keep in mind that you can use the ```E2EDataLoader``` class, that wraps a
 convenient collate function. Every batch it returns is a tuple containing
- * two lists (MRs and REFs) made up of ```batch_size``` lists (```max_mr_len```
-   and ```max_ref_len``` long, respectively);
- * the list of the ```batch_size``` lengths of each MR;
- * the maximum REF size.
-Note that the conversion from integer lists to PyTorch tensors it is up to you.
+ * a tuple containing the padded MRs tensor, sized ```[batch_size, max_mr_len]```, and the list of the ```batch_size```
+   lengths of each MR; 
+ * a tensor sized ```[batch_size, max_ref_len]```, containing the padded REFs;
 
 ### Example
 ```python
 # coding=utf-8
-
 from e2e import E2E, E2ESet
 from e2e_loader import E2EDataLoader
 from lang import WordVocabulary
@@ -36,29 +33,26 @@ dataset = E2E('./data', E2ESet.TEST, vocabulary_class=WordVocabulary)
 data_loader = E2EDataLoader(dataset, batch_size=10)
 
 batch = next(iter(data_loader))
-mrs, refs, mr_len, ref_max_len = batch
+(mrs, mr_lengths), refs = batch
 print(f'My batch is a {type(batch).__name__} containing {len(batch)} items:\n'
-      f'\tmrs, a {type(mrs).__name__} of {len(mrs)} {type(mrs[0][0]).__name__} {type(mrs[0]).__name__}s\n'
-      f'\trefs, a {type(refs).__name__} of {len(refs)} {type(refs[0][0]).__name__} {type(refs[0]).__name__}s\n'
-      f'\tmr_lengths, a {type(mr_len).__name__} of {len(mr_len)} {type(mr_len[0]).__name__}s\n'
-      f'\tref_max_length, an {type(ref_max_len).__name__}\n')
+      f'\tmrs, a {type(mrs).__name__} of size {list(mrs.size())} and '
+      f'mr_lengths, a {type(mr_lengths).__name__} of {len(mr_lengths)} {type(mr_lengths[0]).__name__}s\n'
+      f'\trefs, a {type(refs).__name__} of size {list(refs.size())}\n')
 
 mr = mrs[0]
 ref = refs[0]
-print(f'mr is a {type(mr[0]).__name__} {type(mr).__name__} of size {len(mr)}:\n\t{dataset.to_string(mr)}')
-print(f'ref is a {type(ref[0]).__name__} {type(ref).__name__} of size {len(ref)}:\n\t{dataset.to_string(ref)}')
+print(f'mr is a {type(mr).__name__} of size {list(mr.size())}:\n\t{dataset.to_string(mr)}')
+print(f'ref is a {type(ref).__name__} of size {list(ref.size())}:\n\t{dataset.to_string(ref)}')
 
 # Output:
-# My batch is a tuple containing 4 items:
-#    mrs, a list of 10 int lists
-#    refs, a list of 10 int lists
-#    mr_lengths, a list of 10 ints
-#    ref_max_length, an int
+# My batch is a tuple containing 2 items:
+#     mrs, a Tensor of size [10, 16] and mr_lengths, a list of 10 ints
+#     refs, a Tensor of size [10, 14]
 #
-# mr is a int list of size [16]:
-#    name [ Blue Spice ] , eatType [ pub ] , area [ riverside ]
-# ref is a int list of size [14]:
-#    There is a pub Blue Spice in the riverside area .
+# mr is a Tensor of size [16]:
+#     name [ Blue Spice ] , eatType [ pub ] , area [ riverside ]
+# ref is a Tensor of size [14]:
+#     There is a pub Blue Spice in the riverside area .
 ```
 
 ## Generated directories
